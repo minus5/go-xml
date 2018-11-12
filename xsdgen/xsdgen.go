@@ -15,6 +15,7 @@ import (
 	"aqwari.net/xml/internal/gen"
 	"aqwari.net/xml/xmltree"
 	"aqwari.net/xml/xsd"
+	"github.com/iancoleman/strcase"
 )
 
 type orderedStringMap interface {
@@ -681,12 +682,14 @@ func (cfg *Config) genComplexType(t *xsd.ComplexType) ([]spec, error) {
 		if el.Nillable || el.Optional {
 			options = ",omitempty"
 		}
-		tag := fmt.Sprintf(`xml:"%s %s%s"`, el.Name.Space, el.Name.Local, options)
+		name := namegen.element(el.Name)
+		fieldName := name.(*ast.Ident).Name
+		tag := fmt.Sprintf(`xml:"%s %s%s" json:"%s%s"`,
+			el.Name.Space, el.Name.Local, options, filedToJSONName(fieldName), options)
 		base, err := cfg.expr(el.Type)
 		if err != nil {
 			return nil, fmt.Errorf("%s element %s: %v", t.Name.Local, el.Name.Local, err)
 		}
-		name := namegen.element(el.Name)
 		if el.Wildcard {
 			tag = `xml:",any"`
 			if el.Plural {
@@ -715,7 +718,7 @@ func (cfg *Config) genComplexType(t *xsd.ComplexType) ([]spec, error) {
 			}
 			overrides = append(overrides, fieldOverride{
 				DefaultValue: el.Default,
-				FieldName:    name.(*ast.Ident).Name,
+				FieldName:    fieldName,
 				FromType:     cfg.exprString(el.Type),
 				Tag:          tag,
 				ToType:       typeName,
@@ -728,13 +731,15 @@ func (cfg *Config) genComplexType(t *xsd.ComplexType) ([]spec, error) {
 		if attr.Optional {
 			options = ",omitempty"
 		}
-		tag := fmt.Sprintf(`xml:"%s,attr%s"`, attr.Name.Local, options)
+		name := namegen.attribute(attr.Name)
+		fieldName := name.(*ast.Ident).Name
+		tag := fmt.Sprintf(`xml:"%s,attr%s" json:"%s%s"`,
+			attr.Name.Local, options, filedToJSONName(fieldName), options)
 		base, err := cfg.expr(attr.Type)
 		if err != nil {
 			return nil, fmt.Errorf("%s attribute %s: %v", t.Name.Local, attr.Name.Local, err)
 		}
 		cfg.debugf("adding %s attribute %s as %v", t.Name.Local, attr.Name.Local, base)
-		name := namegen.attribute(attr.Name)
 		fields = append(fields, name, base, gen.String(tag))
 		if attr.Default != "" || nonTrivialBuiltin(attr.Type) {
 			typeName := cfg.exprString(attr.Type)
@@ -748,7 +753,7 @@ func (cfg *Config) genComplexType(t *xsd.ComplexType) ([]spec, error) {
 			}
 			overrides = append(overrides, fieldOverride{
 				DefaultValue: attr.Default,
-				FieldName:    name.(*ast.Ident).Name,
+				FieldName:    fieldName,
 				FromType:     cfg.exprString(attr.Type),
 				Tag:          tag,
 				ToType:       typeName,
@@ -779,6 +784,14 @@ func (cfg *Config) genComplexType(t *xsd.ComplexType) ([]spec, error) {
 	}
 	result = append(result, s)
 	return result, nil
+}
+
+func filedToJSONName(fieldName string) string {
+	j := strcase.ToLowerCamel(fieldName)
+	if j == "iD" {
+		j = "id"
+	}
+	return j
 }
 
 func (cfg *Config) genComplexTypeMethods(t *xsd.ComplexType, overrides []fieldOverride) (marshal, unmarshal *ast.FuncDecl, err error) {

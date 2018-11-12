@@ -11,6 +11,7 @@ import (
 
 	"aqwari.net/xml/internal/gen"
 	"aqwari.net/xml/xsd"
+	"github.com/iancoleman/strcase"
 )
 
 // A Config holds user-defined overrides and filters that are used when
@@ -70,8 +71,7 @@ type Option func(*Config) Option
 // cases, and produce usable, idiomatic Go code. The top-level Generate
 // function of the xsdgen package uses these options.
 var DefaultOptions = []Option{
-	IgnoreAttributes("id", "href", "ref", "offset"),
-	Replace(`[._ \s-]`, ""),
+	Replace(`(Id)`, "ID"),
 	PackageName("ws"),
 	HandleSOAPArrayType(),
 	SOAPArrayAsSlice(),
@@ -256,6 +256,7 @@ func Replace(pat, repl string) Option {
 				cfg.logf("Invalid regex %q passed to Replace", pat)
 				return name
 			}
+			name.Local = strcase.ToCamel(name.Local)
 			r := reg.ReplaceAllString(name.Local, repl)
 			if r != name.Local {
 				cfg.debugf("changed name %s -> %s", name.Local, r)
